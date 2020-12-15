@@ -33,7 +33,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define NUM_SAMPLES 3500
+#define NUM_SAMPLES 5000
 #define NUM_SAMPLES_PLUS_ONE (NUM_SAMPLES + 1)
 /* USER CODE END PD */
 
@@ -49,7 +49,7 @@ DMA_HandleTypeDef hdma_adc1;
 TIM_HandleTypeDef htim2;
 
 /* USER CODE BEGIN PV */
-uint8_t adcSamples[NUM_SAMPLES_PLUS_ONE];
+uint16_t adcSamples[NUM_SAMPLES_PLUS_ONE];
 
 /* USER CODE END PV */
 
@@ -66,7 +66,7 @@ static void MX_TIM2_Init(void);
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 
 	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
-	CDC_Transmit_FS(adcSamples, NUM_SAMPLES_PLUS_ONE);
+	CDC_Transmit_FS((uint8_t *)adcSamples, NUM_SAMPLES_PLUS_ONE*2);
 //	HAL_UART_Transmit(&huart1, adcSamples, NUM_SAMPLES, 100);
 //	HAL_UART_Transmit(&huart1, (uint8_t*)"\n", 1, 100);
 //	CDC_Transmit_FS(test, strlen(test));
@@ -89,7 +89,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-	adcSamples[NUM_SAMPLES] = (uint8_t)'\n';
+	adcSamples[NUM_SAMPLES] = (uint16_t)'\n';
 
   /* USER CODE END 1 */
 
@@ -219,7 +219,7 @@ static void MX_ADC1_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN ADC1_Init 2 */
-  hadc1.Init.Resolution = ADC_RESOLUTION_12B;
+
   /* USER CODE END ADC1_Init 2 */
 
 }
