@@ -23,7 +23,18 @@
 #include "usbd_cdc_if.h"
 
 /* USER CODE BEGIN INCLUDE */
+#define  FIFO_SIZE 32  // must be 2^N
+#define FIFO_INCR(x) (((x)+1)&((FIFO_SIZE)-1))
 
+/* Structure of FIFO */
+typedef struct FIFO
+{
+	uint32_t head;
+	uint32_t tail;
+		uint8_t data[FIFO_SIZE];
+} FIFO;
+
+extern FIFO RX_FIFO;
 /* USER CODE END INCLUDE */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -260,9 +271,45 @@ static int8_t CDC_Control_FS(uint8_t cmd, uint8_t* pbuf, uint16_t length)
 static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
 {
   /* USER CODE BEGIN 6 */
-  USBD_CDC_SetRxBuffer(&hUsbDeviceFS, &Buf[0]);
-  USBD_CDC_ReceivePacket(&hUsbDeviceFS);
-  return (USBD_OK);
+	uint32_t len=*Len;
+	if (hUsbDeviceFS.dev_state != USBD_STATE_CONFIGURED)
+	{
+	   return USBD_FAIL;
+	}
+
+	if (((Buf == NULL) || (Len == NULL)) || (*Len <= 0))
+	{
+	   return USBD_FAIL;
+	}
+
+	/* Get data */
+	uint8_t result = USBD_OK;
+	    do
+	    {
+	        result = USBD_CDC_SetRxBuffer(&hUsbDeviceFS, &Buf[0]);
+	    }
+	    while(result != USBD_OK);
+
+	    do
+	    {
+	       result = USBD_CDC_ReceivePacket(&hUsbDeviceFS);
+	    }
+	    while(result != USBD_OK);
+
+	// add data to FIFO
+	    while (len--)
+	       if (FIFO_INCR(RX_FIFO.head)==RX_FIFO.tail)
+	             return USBD_FAIL;  // overrun
+	       else
+	        {
+	        RX_FIFO.data[RX_FIFO.head]=*Buf++;
+	       RX_FIFO.head=FIFO_INCR(RX_FIFO.head);
+	       }
+	   return (USBD_OK);
+
+//  USBD_CDC_SetRxBuffer(&hUsbDeviceFS, &Buf[0]);
+//  USBD_CDC_ReceivePacket(&hUsbDeviceFS);
+//  return (USBD_OK);
   /* USER CODE END 6 */
 }
 

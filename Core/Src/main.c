@@ -28,7 +28,16 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+#define  FIFO_SIZE 32  // must be 2^N
+#define FIFO_INCR(x) (((x)+1)&((FIFO_SIZE)-1))
 
+/* Structure of FIFO */
+typedef struct FIFO
+{
+	uint32_t head;
+	uint32_t tail;
+		uint8_t data[FIFO_SIZE];
+} FIFO;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -51,6 +60,9 @@ TIM_HandleTypeDef htim2;
 /* USER CODE BEGIN PV */
 uint16_t adcSamples[NUM_SAMPLES_PLUS_ONE];
 
+FIFO RX_FIFO = {.head=0, .tail=0};
+uint8_t rxBuffer[4];
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -61,18 +73,27 @@ static void MX_ADC1_Init(void);
 static void MX_TIM2_Init(void);
 /* USER CODE BEGIN PFP */
 
-//char test[] = "\n";
+uint8_t VCP_read(uint8_t* Buf, uint32_t Len) {
+	uint32_t count=0;
+	/* Check inputs */
+	if ((Buf == NULL) || (Len == 0))
+		return 0;
+
+	while (Len--) {
+		if (RX_FIFO.head==RX_FIFO.tail)
+			return count;
+		count++;
+		*Buf++=RX_FIFO.data[RX_FIFO.tail];
+		RX_FIFO.tail=FIFO_INCR(RX_FIFO.tail);
+	}
+
+	return count;
+}
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
-
-	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
+//	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
 	CDC_Transmit_FS((uint8_t *)adcSamples, NUM_SAMPLES_PLUS_ONE*2);
-//	HAL_UART_Transmit(&huart1, adcSamples, NUM_SAMPLES, 100);
-//	HAL_UART_Transmit(&huart1, (uint8_t*)"\n", 1, 100);
-//	CDC_Transmit_FS(test, strlen(test));
-//	CDC_Transmit_FS((uint8_t*)"\n", 1);
-	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
-
+//	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
 }
 
 /* USER CODE END PFP */
@@ -118,7 +139,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
   HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adcSamples, NUM_SAMPLES);
-  HAL_TIM_Base_Start_IT(&htim2);
+  HAL_TIM_Base_Start_IT(&htim2); //MODO LIBRE
 
   /* USER CODE END 2 */
 
@@ -126,10 +147,29 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	VCP_read(rxBuffer, 4);
+
+	if (rxBuffer[2] == 's' || rxBuffer[3] == 's') {
+		switch(rxBuffer[0]){
+			case '1': //MODO LIBRE
+				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
+				HAL_TIM_Base_Start_IT(&htim2);
+				break;
+			case '2':
+				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
+				HAL_TIM_Base_Stop(&htim2);
+				break;
+			default:
+				break;
+		}
+		for (int i=0; i<4; i++)
+			rxBuffer[i] = 0;
+	}
+  }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-  }
+
   /* USER CODE END 3 */
 }
 
@@ -300,7 +340,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOA_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
 
   /*Configure GPIO pin : PC13 */
   GPIO_InitStruct.Pin = GPIO_PIN_13;
