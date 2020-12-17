@@ -44,6 +44,7 @@ typedef struct FIFO
 /* USER CODE BEGIN PD */
 #define NUM_SAMPLES 5000
 #define NUM_SAMPLES_PLUS_ONE (NUM_SAMPLES + 1)
+#define RX_DATA_BYTES 4
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -59,9 +60,12 @@ TIM_HandleTypeDef htim2;
 
 /* USER CODE BEGIN PV */
 uint16_t adcSamples[NUM_SAMPLES_PLUS_ONE];
+uint16_t triggerLevel;
+uint32_t time;
+uint8_t mode = 1; //1:MODO LIBRE, 2:MODO TRIGGER
 
 FIFO RX_FIFO = {.head=0, .tail=0};
-uint8_t rxBuffer[4];
+uint8_t rxBuffer[RX_DATA_BYTES];
 
 /* USER CODE END PV */
 
@@ -110,7 +114,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-	adcSamples[NUM_SAMPLES] = (uint16_t)'\n';
+  adcSamples[NUM_SAMPLES] = (uint16_t)'\n';
+  time = HAL_GetTick();
 
   /* USER CODE END 1 */
 
@@ -147,23 +152,33 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	VCP_read(rxBuffer, 4);
+	VCP_read(rxBuffer, RX_DATA_BYTES);
 
-	if (rxBuffer[2] == 's' || rxBuffer[3] == 's') {
+	if (rxBuffer[RX_DATA_BYTES - 2] == '\n' || rxBuffer[RX_DATA_BYTES - 1] == '\n') {
 		switch(rxBuffer[0]){
 			case '1': //MODO LIBRE
-				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
 				HAL_TIM_Base_Start_IT(&htim2);
+				mode = 1;
 				break;
-			case '2':
-				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
+			case '2': //MODO TRIGGER
+				triggerLevel = ((uint16_t)rxBuffer[2] << 8) | rxBuffer[1];
 				HAL_TIM_Base_Stop(&htim2);
+				mode = 2;
+				time = HAL_GetTick();
 				break;
 			default:
 				break;
 		}
-		for (int i=0; i<4; i++)
+		for (int i=0; i<RX_DATA_BYTES; i++)
 			rxBuffer[i] = 0;
+	}
+
+	//MODO LIBRE
+	if (mode == 2 && HAL_GetTick() >= (time + 40)) {
+		if (adcSamples[(uint16_t)(NUM_SAMPLES/2)] >= triggerLevel){
+			CDC_Transmit_FS((uint8_t *)adcSamples, NUM_SAMPLES_PLUS_ONE*2);
+			time = HAL_GetTick();
+		}
 	}
   }
     /* USER CODE END WHILE */
