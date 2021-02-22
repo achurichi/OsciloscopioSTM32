@@ -28,7 +28,7 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-#define  FIFO_SIZE 32  // must be 2^N
+#define  FIFO_SIZE 64  // must be 2^N
 #define FIFO_INCR(x) (((x)+1)&((FIFO_SIZE)-1))
 
 /* Structure of FIFO */
@@ -62,11 +62,10 @@ TIM_HandleTypeDef htim2;
 uint16_t adcSamples[NUM_SAMPLES_PLUS_ONE];
 uint16_t triggerLevel;
 uint32_t time;
-uint8_t mode = 1; //1:MODO LIBRE, 2:MODO TRIGGER
+uint8_t mode = 0; //1:MODO LIBRE, 2:MODO TRIGGER
 
 FIFO RX_FIFO = {.head=0, .tail=0};
 uint8_t rxBuffer[RX_DATA_BYTES];
-
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -95,9 +94,9 @@ uint8_t VCP_read(uint8_t* Buf, uint32_t Len) {
 }
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
-//	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
 	CDC_Transmit_FS((uint8_t *)adcSamples, NUM_SAMPLES_PLUS_ONE*2);
-//	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
 }
 
 /* USER CODE END PFP */
@@ -115,8 +114,6 @@ int main(void)
 {
   /* USER CODE BEGIN 1 */
   adcSamples[NUM_SAMPLES] = (uint16_t)'\n';
-  time = HAL_GetTick();
-
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -144,8 +141,8 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
   HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adcSamples, NUM_SAMPLES);
-  HAL_TIM_Base_Start_IT(&htim2); //MODO LIBRE
 
+  time = HAL_GetTick();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -165,6 +162,14 @@ int main(void)
 				HAL_TIM_Base_Stop(&htim2);
 				mode = 2;
 				time = HAL_GetTick();
+				break;
+			case '3':
+				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, (rxBuffer[1])? 1 : 0);
+				break;
+			case '4':
+				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, (rxBuffer[1])? 1 : 0);
+			case '5':
+				HAL_TIM_Base_Stop(&htim2);
 				break;
 			default:
 				break;
@@ -353,9 +358,13 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4|GPIO_PIN_7, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : PC13 */
   GPIO_InitStruct.Pin = GPIO_PIN_13;
@@ -363,6 +372,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PB4 PB7 */
+  GPIO_InitStruct.Pin = GPIO_PIN_4|GPIO_PIN_7;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
 }
 
